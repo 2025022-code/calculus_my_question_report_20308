@@ -1,0 +1,1168 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>사고량 파라미터 비교기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Source+Code+Pro:ital,wght@0,300;0,400;0,600;1,300&family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+/* ─────────── CSS VARIABLES ─────────── */
+:root {
+  --bg:     #080c14;
+  --bg2:    #0d1220;
+  --bg3:    #111829;
+  --panel:  #0a0f1c;
+  --border: rgba(255,255,255,0.06);
+  --border2:rgba(255,255,255,0.11);
+  --text:   #c8d4f0;
+  --muted:  #4a5578;
+  --dim:    #2a3355;
+
+  /* 스냅샷 4색 */
+  --s0: #00e5ff;   /* cyan   */
+  --s1: #ffb300;   /* amber  */
+  --s2: #ff4d6d;   /* rose   */
+  --s3: #69ff47;   /* lime   */
+
+  --live: #7c8fff; /* 라이브 커서 색 */
+}
+
+*, *::before, *::after { box-sizing: border-box; margin:0; padding:0; }
+html, body { height:100%; overflow:hidden; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Noto Sans KR', sans-serif;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* ─────────── TOPBAR ─────────── */
+#topbar {
+  height: 54px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 16px;
+  flex-shrink: 0;
+  z-index: 10;
+}
+.topbar-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: #e0e8ff;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+.topbar-title span { color: var(--live); }
+.topbar-divider { width:1px; height:22px; background:var(--border2); flex-shrink:0; }
+
+/* 스냅샷 칩 */
+#snap-bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex: 1;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+#snap-bar::-webkit-scrollbar { display:none; }
+
+.snap-chip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 10px 5px 8px;
+  border-radius: 6px;
+  border: 1px solid;
+  font-family: 'Source Code Pro', monospace;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all .18s;
+  white-space: nowrap;
+  flex-shrink: 0;
+  position: relative;
+  user-select: none;
+}
+.snap-chip:hover { filter: brightness(1.25); }
+.snap-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.snap-del {
+  width:14px; height:14px;
+  border-radius:3px;
+  background:rgba(255,255,255,0.08);
+  display:flex; align-items:center; justify-content:center;
+  font-size:10px; cursor:pointer;
+  transition: background .15s;
+}
+.snap-del:hover { background:rgba(255,255,255,0.18); }
+
+.snap-empty {
+  font-family: 'Source Code Pro', monospace;
+  font-size: 11px;
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* 저장 버튼 */
+#btn-snap {
+  padding: 7px 16px;
+  background: rgba(124,143,255,0.12);
+  border: 1px solid rgba(124,143,255,0.3);
+  border-radius: 7px;
+  color: var(--live);
+  font-family: 'Syne', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all .18s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+#btn-snap:hover { background:rgba(124,143,255,0.22); border-color:rgba(124,143,255,0.5); }
+#btn-snap:active { transform:scale(.96); }
+
+#btn-clear {
+  padding: 7px 12px;
+  background: rgba(255,77,109,0.08);
+  border: 1px solid rgba(255,77,109,0.2);
+  border-radius: 7px;
+  color: #ff4d6d;
+  font-family: 'Syne', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .18s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+#btn-clear:hover { background:rgba(255,77,109,0.16); }
+
+/* ─────────── MAIN LAYOUT ─────────── */
+#workspace {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ─────────── LEFT PANEL ─────────── */
+#ctrl-panel {
+  width: 272px;
+  flex-shrink: 0;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--dim) transparent;
+  padding: 18px 16px 24px;
+}
+
+.ctrl-section { margin-bottom: 22px; }
+.ctrl-label {
+  font-family: 'Source Code Pro', monospace;
+  font-size: 9px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.param-row {
+  margin-bottom: 13px;
+}
+.param-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+.param-name {
+  font-family: 'Source Code Pro', monospace;
+  font-size: 12px;
+  color: var(--text);
+}
+.param-name sub {
+  font-size: 9px;
+  color: var(--muted);
+  vertical-align: sub;
+}
+.param-desc {
+  font-size: 10px;
+  color: var(--muted);
+}
+.param-value {
+  font-family: 'Source Code Pro', monospace;
+  font-size: 12px;
+  color: var(--live);
+  font-weight: 600;
+}
+
+/* range input */
+input[type=range] {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 2px;
+  background: var(--dim);
+  border-radius: 1px;
+  outline: none;
+  cursor: pointer;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 13px; height: 13px;
+  border-radius: 50%;
+  background: var(--live);
+  box-shadow: 0 0 10px rgba(124,143,255,0.6);
+  transition: transform .12s;
+}
+input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.4); }
+input[type=range].thr-slider::-webkit-slider-thumb { background: #ffb300; box-shadow:0 0 10px rgba(255,179,0,0.5); }
+input[type=range].int-slider::-webkit-slider-thumb { background: #69ff47; box-shadow:0 0 10px rgba(105,255,71,0.4); }
+
+.param-divider {
+  height:1px; background:var(--border);
+  margin: 16px 0;
+}
+
+/* Diff badge */
+.diff-badge {
+  display: inline-block;
+  font-family: 'Source Code Pro', monospace;
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-left: 4px;
+  vertical-align: middle;
+  transition: all .2s;
+}
+.diff-pos { background:rgba(105,255,71,0.12); color:#69ff47; }
+.diff-neg { background:rgba(255,77,109,0.12); color:#ff4d6d; }
+.diff-zero { display:none; }
+
+/* ─────────── RIGHT AREA ─────────── */
+#chart-area {
+  flex: 1;
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.chart-cell {
+  background: var(--bg);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.cell-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 6px;
+  flex-shrink: 0;
+}
+.cell-title {
+  font-family: 'Source Code Pro', monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.cell-live-val {
+  font-family: 'Source Code Pro', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--live);
+}
+
+canvas.chart-canvas {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  display: block;
+}
+
+/* ─────────── RADAR AREA (cell 4) ─────────── */
+#radar-wrap {
+  flex:1;
+  position:relative;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  min-height:0;
+}
+canvas#radarCanvas {
+  max-width:100%;
+  max-height:100%;
+}
+
+/* ─────────── LIVE INDICATOR ─────────── */
+.live-dot {
+  display:inline-block;
+  width:7px; height:7px;
+  border-radius:50%;
+  background:var(--live);
+  box-shadow:0 0 8px var(--live);
+  animation: pulse 1.4s ease-in-out infinite;
+  margin-right:6px;
+}
+@keyframes pulse {
+  0%,100% { opacity:1; transform:scale(1); }
+  50% { opacity:0.4; transform:scale(0.7); }
+}
+
+/* ─────────── TOAST ─────────── */
+#toast {
+  position:fixed;
+  bottom:24px; left:50%;
+  transform:translateX(-50%) translateY(80px);
+  background:rgba(20,28,50,0.95);
+  border:1px solid var(--border2);
+  border-radius:8px;
+  padding:10px 20px;
+  font-family:'Source Code Pro',monospace;
+  font-size:12px;
+  color:var(--text);
+  transition:transform .3s cubic-bezier(.34,1.56,.64,1);
+  pointer-events:none;
+  z-index:100;
+  backdrop-filter:blur(12px);
+}
+#toast.show { transform:translateX(-50%) translateY(0); }
+
+/* ─────────── CLI METER ─────────── */
+.cli-meter-wrap {
+  padding: 0 14px 10px;
+  flex-shrink:0;
+}
+.cli-meter-track {
+  height:3px;
+  background:var(--dim);
+  border-radius:2px;
+  overflow:hidden;
+  position:relative;
+}
+.cli-meter-fill {
+  height:100%;
+  border-radius:2px;
+  transition:width .15s, background .3s;
+}
+
+/* ─────────── SCROLLBAR ─────────── */
+::-webkit-scrollbar { width:4px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--dim); border-radius:2px; }
+
+/* ─────────── SNAP CHIP ANIMATION ─────────── */
+@keyframes chipIn {
+  from { opacity:0; transform:scale(.8) translateY(-6px); }
+  to   { opacity:1; transform:scale(1)  translateY(0); }
+}
+.snap-chip { animation: chipIn .25s ease forwards; }
+
+/* ─────────── TOOLTIP ─────────── */
+#tooltip {
+  position:fixed;
+  background:rgba(13,18,32,0.95);
+  border:1px solid var(--border2);
+  border-radius:6px;
+  padding:7px 11px;
+  font-family:'Source Code Pro',monospace;
+  font-size:11px;
+  color:var(--text);
+  pointer-events:none;
+  display:none;
+  z-index:99;
+  line-height:1.6;
+  backdrop-filter:blur(8px);
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════ TOPBAR ═══════ -->
+<div id="topbar">
+  <div class="topbar-title"><span>▶</span> PFC 사고량 비교기</div>
+  <div class="topbar-divider"></div>
+  <div id="snap-bar">
+    <span class="snap-empty" id="snap-empty-msg">스냅샷을 저장하면 여기에 표시됩니다</span>
+  </div>
+  <button id="btn-snap" onclick="saveSnapshot()">⊕ 스냅샷 저장</button>
+  <button id="btn-clear" onclick="clearAll()">✕ 전체 삭제</button>
+</div>
+
+<!-- ═══════ WORKSPACE ═══════ -->
+<div id="workspace">
+
+  <!-- ── LEFT CONTROL PANEL ── -->
+  <div id="ctrl-panel">
+
+    <!-- 신호 파라미터 -->
+    <div class="ctrl-section">
+      <div class="ctrl-label">신호 파라미터</div>
+
+      <div class="param-row">
+        <div class="param-head">
+          <span class="param-name">r<sub>0</sub> <span class="param-desc">기저 발화율</span></span>
+          <span class="param-value" id="v-r0">12.0 Hz</span>
+        </div>
+        <input type="range" id="s-r0" min="2" max="30" step="0.5" value="12"/>
+        <span class="diff-badge" id="d-r0"></span>
+      </div>
+
+      <div class="param-row">
+        <div class="param-head">
+          <span class="param-name">A <span class="param-desc">자극 진폭</span></span>
+          <span class="param-value" id="v-A">30 Hz</span>
+        </div>
+        <input type="range" id="s-A" min="5" max="70" step="1" value="30"/>
+        <span class="diff-badge" id="d-A"></span>
+      </div>
+
+      <div class="param-row">
+        <div class="param-head">
+          <span class="param-name">λ <span class="param-desc">감쇠 계수</span></span>
+          <span class="param-value" id="v-lam">1.2</span>
+        </div>
+        <input type="range" id="s-lam" min="0.1" max="5" step="0.1" value="1.2"/>
+        <span class="diff-badge" id="d-lam"></span>
+      </div>
+
+      <div class="param-row">
+        <div class="param-head">
+          <span class="param-name">ω <span class="param-desc">진동 주파수</span></span>
+          <span class="param-value" id="v-om">40 rad/s</span>
+        </div>
+        <input type="range" id="s-om" min="5" max="100" step="1" value="40"/>
+        <span class="diff-badge" id="d-om"></span>
+      </div>
+
+      <div class="param-row">
+        <div class="param-head">
+          <span class="param-name">t<sub>0</sub> <span class="param-desc">자극 시작</span></span>
+          <span class="param-value" id="v-t0">1.5 s</span>
+        </div>
+        <input type="range" id="s-t0" min="0.2" max="4" step="0.1" value="1.5"/>
+        <span class="diff-badge" id="d-t0"></span>
+      </div>
+    </div>
+
+    <!-- 임계값 -->
+    <div class="ctrl-section">
+      <div class="ctrl-label">임계값 설정</div>
+      <div class="param-row">
+        <div class="param-head">
+          <span class="param-name">r<sub>thr</sub> <span class="param-desc">불수의 상한</span></span>
+          <span class="param-value" id="v-rthr" style="color:#ffb300">18.0 Hz</span>
+        </div>
+        <input type="range" class="thr-slider" id="s-rthr" min="3" max="50" step="0.5" value="18"/>
+        <span class="diff-badge" id="d-rthr"></span>
+      </div>
+    </div>
+
+    <!-- 적분 구간 -->
+    <div class="ctrl-section">
+      <div class="ctrl-label">적분 구간</div>
+      <div class="param-row">
+        <div class="param-head">
+          <span class="param-name">t<sub>1</sub> <span class="param-desc">시작</span></span>
+          <span class="param-value" id="v-t1" style="color:#69ff47">0.0 s</span>
+        </div>
+        <input type="range" class="int-slider" id="s-t1" min="0" max="4" step="0.1" value="0"/>
+        <span class="diff-badge" id="d-t1"></span>
+      </div>
+      <div class="param-row">
+        <div class="param-head">
+          <span class="param-name">t<sub>2</sub> <span class="param-desc">끝</span></span>
+          <span class="param-value" id="v-t2" style="color:#69ff47">5.0 s</span>
+        </div>
+        <input type="range" class="int-slider" id="s-t2" min="1" max="7" step="0.1" value="5"/>
+        <span class="diff-badge" id="d-t2"></span>
+      </div>
+    </div>
+
+    <!-- 라이브 CLI 미터 -->
+    <div class="ctrl-section">
+      <div class="ctrl-label">실시간 출력</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
+        <div style="background:var(--bg3); border-radius:8px; padding:10px; text-align:center;">
+          <div style="font-family:'Source Code Pro',monospace; font-size:8px; letter-spacing:1.5px; color:var(--muted); margin-bottom:5px;">CLI</div>
+          <div style="font-family:'Syne',sans-serif; font-size:20px; font-weight:700; color:var(--live);" id="out-cli">—</div>
+          <div style="font-family:'Source Code Pro',monospace; font-size:8px; color:var(--muted); margin-top:2px;">Hz·s</div>
+        </div>
+        <div style="background:var(--bg3); border-radius:8px; padding:10px; text-align:center;">
+          <div style="font-family:'Source Code Pro',monospace; font-size:8px; letter-spacing:1.5px; color:var(--muted); margin-bottom:5px;">CCV</div>
+          <div style="font-family:'Syne',sans-serif; font-size:20px; font-weight:700; color:#69ff47;" id="out-ccv">—</div>
+          <div style="font-family:'Source Code Pro',monospace; font-size:8px; color:var(--muted); margin-top:2px;">Hz·s²</div>
+        </div>
+      </div>
+      <div style="font-family:'Source Code Pro',monospace; font-size:8px; letter-spacing:1.5px; color:var(--muted); margin-bottom:6px;">CLI 강도</div>
+      <div class="cli-meter-track">
+        <div class="cli-meter-fill" id="cli-meter" style="width:0%;"></div>
+      </div>
+      <div style="font-family:'Source Code Pro',monospace; font-size:10px; color:var(--muted); margin-top:8px; text-align:center;" id="cli-label">—</div>
+    </div>
+
+    <!-- 스냅샷 비교 요약 -->
+    <div class="ctrl-section" id="diff-section" style="display:none;">
+      <div class="ctrl-label">↕ 스냅샷 비교</div>
+      <div id="diff-table" style="font-family:'Source Code Pro',monospace; font-size:11px; line-height:2;"></div>
+    </div>
+
+  </div>
+
+  <!-- ── RIGHT CHART AREA ── -->
+  <div id="chart-area">
+
+    <!-- Cell 1: r(t) + CLI 면적 -->
+    <div class="chart-cell">
+      <div class="cell-header">
+        <span class="cell-title"><span class="live-dot"></span>발화율 r(t) &amp; CLI 적분</span>
+        <span class="cell-live-val" id="peak-val">—</span>
+      </div>
+      <canvas class="chart-canvas" id="c-firing"></canvas>
+    </div>
+
+    <!-- Cell 2: CCV 누적 -->
+    <div class="chart-cell">
+      <div class="cell-header">
+        <span class="cell-title"><span class="live-dot"></span>누적 사고량 CCV(T)</span>
+        <span class="cell-live-val" id="ccv-final">—</span>
+      </div>
+      <canvas class="chart-canvas" id="c-ccv"></canvas>
+    </div>
+
+    <!-- Cell 3: BOLD 신호 -->
+    <div class="chart-cell">
+      <div class="cell-header">
+        <span class="cell-title"><span class="live-dot"></span>BOLD 신호 (fMRI 시뮬레이션)</span>
+        <span class="cell-live-val" id="bold-peak">—</span>
+      </div>
+      <canvas class="chart-canvas" id="c-bold"></canvas>
+    </div>
+
+    <!-- Cell 4: 레이더 차트 -->
+    <div class="chart-cell">
+      <div class="cell-header">
+        <span class="cell-title"><span class="live-dot"></span>파라미터 레이더</span>
+        <span class="cell-live-val" style="font-size:10px; color:var(--muted);">5-axis</span>
+      </div>
+      <div id="radar-wrap">
+        <canvas id="radarCanvas"></canvas>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div id="toast"></div>
+<div id="tooltip"></div>
+
+<script>
+/* ══════════════════════════════════════════
+   MATH ENGINE
+══════════════════════════════════════════ */
+const P = { r0:12, A:30, lam:1.2, om:40, t0:1.5, rthr:18, t1:0, t2:5 };
+
+const r  = (t, p=P) => p.r0 + p.A * Math.exp(-p.lam*(t-p.t0)**2) * Math.cos(p.om*t);
+const f  = (t, p=P) => Math.max(r(t,p) - p.rthr, 0);
+
+function trapz(fn, a, b, n=800, p=P) {
+  const dt=(b-a)/n; let s=(fn(a,p)+fn(b,p))/2;
+  for(let k=1;k<n;k++) s+=fn(a+k*dt,p);
+  return s*dt;
+}
+
+function computeCCV(p=P, n=300) {
+  const {t1,t2}=p, dt=(t2-t1)/n;
+  const T=[], V=[]; let cum=0;
+  for(let k=0;k<=n;k++){
+    const t=t1+k*dt; T.push(t);
+    if(k>0) cum+=f(t,p)*dt;
+    V.push(cum);
+  }
+  return {T,V};
+}
+
+function hrf(t) {
+  if(t<0) return 0;
+  const g1=Math.pow(t,5)*Math.exp(-t)/120;
+  const g2=Math.pow(t,14)*Math.exp(-t/1.6)/1e10;
+  return g1 - 0.35*g2;
+}
+
+function computeBOLD(p=P, n=280) {
+  const tMax=14, dt=tMax/n;
+  const times=Array.from({length:n+1},(_,i)=>i*dt);
+  const rv=times.map(t=>Math.max(r(t,p)-p.r0,0));
+  const bv=new Array(n+1).fill(0);
+  for(let i=0;i<=n;i++) for(let j=0;j<=i;j++) bv[i]+=rv[j]*hrf((i-j)*dt)*dt;
+  return {times, bv};
+}
+
+function calcStats(p) {
+  const cli = trapz(f, p.t1, p.t2, 800, p);
+  const {V} = computeCCV(p,300);
+  const ccv = V[V.length-1];
+  let peak=-1e9;
+  for(let i=0;i<=600;i++) { const t=p.t1+(p.t2-p.t1)*i/600; const v=r(t,p); if(v>peak) peak=v; }
+  // 임계 초과 비율
+  let over=0, total=600;
+  for(let i=0;i<=total;i++) { const t=p.t1+(p.t2-p.t1)*i/total; if(r(t,p)>p.rthr) over++; }
+  const overRate = over/total;
+  const dur = p.t2-p.t1;
+  return {cli, ccv, peak, overRate, dur};
+}
+
+/* ══════════════════════════════════════════
+   SNAPSHOTS
+══════════════════════════════════════════ */
+const SNAP_COLORS = ['#00e5ff','#ffb300','#ff4d6d','#69ff47'];
+const SNAP_NAMES  = ['Alpha','Beta','Gamma','Delta'];
+let snapshots = []; // {params, stats, color, name, id}
+let snapId = 0;
+
+function saveSnapshot() {
+  if(snapshots.length>=4){ showToast('최대 4개까지 저장 가능합니다'); return; }
+  const colorIdx = snapshots.length;
+  const p = {...P};
+  const stats = calcStats(p);
+  const snap = { params:p, stats, color:SNAP_COLORS[colorIdx], name:SNAP_NAMES[colorIdx], id:snapId++ };
+  snapshots.push(snap);
+  renderSnapBar();
+  redraw();
+  updateDiffSection();
+  showToast(`스냅샷 [${snap.name}] 저장됨`);
+}
+
+function deleteSnapshot(id) {
+  snapshots = snapshots.filter(s=>s.id!==id);
+  // 색상 재배정
+  snapshots.forEach((s,i)=>{ s.color=SNAP_COLORS[i]; s.name=SNAP_NAMES[i]; });
+  renderSnapBar();
+  redraw();
+  updateDiffSection();
+}
+
+function clearAll() {
+  snapshots=[];
+  renderSnapBar();
+  redraw();
+  updateDiffSection();
+  showToast('모든 스냅샷 삭제됨');
+}
+
+function renderSnapBar() {
+  const bar=document.getElementById('snap-bar');
+  const empty=document.getElementById('snap-empty-msg');
+  bar.querySelectorAll('.snap-chip').forEach(c=>c.remove());
+  if(snapshots.length===0){ empty.style.display=''; return; }
+  empty.style.display='none';
+  snapshots.forEach(s=>{
+    const chip=document.createElement('div');
+    chip.className='snap-chip';
+    chip.style.borderColor=s.color+'44';
+    chip.style.background=s.color+'0d';
+    chip.style.color=s.color;
+    chip.innerHTML=`
+      <div class="snap-dot" style="background:${s.color};box-shadow:0 0 6px ${s.color}88;"></div>
+      <span>${s.name}</span>
+      <span style="color:${s.color}88; font-size:10px;">CLI ${s.stats.cli.toFixed(1)}</span>
+      <div class="snap-del" onclick="deleteSnapshot(${s.id})" title="삭제">✕</div>
+    `;
+    bar.insertBefore(chip, document.getElementById('btn-snap'));
+  });
+}
+
+/* ══════════════════════════════════════════
+   DIFF SECTION
+══════════════════════════════════════════ */
+function updateDiffSection() {
+  const sec=document.getElementById('diff-section');
+  const tbl=document.getElementById('diff-table');
+  if(snapshots.length===0){ sec.style.display='none'; return; }
+  sec.style.display='';
+  const live=calcStats(P);
+  const last=snapshots[snapshots.length-1];
+  const rows=[
+    ['CLI',   live.cli.toFixed(2),   last.stats.cli.toFixed(2),   live.cli-last.stats.cli],
+    ['CCV',   live.ccv.toFixed(2),   last.stats.ccv.toFixed(2),   live.ccv-last.stats.ccv],
+    ['Peak',  live.peak.toFixed(1),  last.stats.peak.toFixed(1),  live.peak-last.stats.peak],
+    ['Over%', (live.overRate*100).toFixed(0)+'%', (last.stats.overRate*100).toFixed(0)+'%', (live.overRate-last.stats.overRate)*100],
+  ];
+  tbl.innerHTML = `<div style="color:var(--muted); font-size:9px; margin-bottom:6px;">vs 최근 스냅샷 [${last.name}]</div>`
+    + rows.map(([lbl,lv,sv,delta])=>{
+      const sign = delta>0.05?'↑':delta<-0.05?'↓':'=';
+      const col  = delta>0.05?'#69ff47':delta<-0.05?'#ff4d6d':'var(--muted)';
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0;">
+        <span style="color:var(--muted);width:40px">${lbl}</span>
+        <span style="color:var(--live)">${lv}</span>
+        <span style="color:var(--dim)">→</span>
+        <span style="color:${col}">${sign} ${typeof delta==='number'?(Math.abs(delta)<10?delta.toFixed(2):delta.toFixed(1)):''}</span>
+      </div>`;
+    }).join('');
+}
+
+/* ══════════════════════════════════════════
+   CANVAS UTILITIES
+══════════════════════════════════════════ */
+function setupCanvas(id) {
+  const el=document.getElementById(id);
+  const dpr=window.devicePixelRatio||1;
+  const w=el.offsetWidth, h=el.offsetHeight;
+  el.width=w*dpr; el.height=h*dpr;
+  const ctx=el.getContext('2d'); ctx.scale(dpr,dpr);
+  return {ctx, W:w, H:h};
+}
+
+function drawGrid(ctx,W,H,pad,xMin,xMax,yMin,yMax,xTicks,yTicks) {
+  ctx.strokeStyle='rgba(255,255,255,0.04)'; ctx.lineWidth=1;
+  for(let i=0;i<=xTicks;i++){
+    const x=pad.l+(W-pad.l-pad.r)*i/xTicks;
+    ctx.beginPath(); ctx.moveTo(x,pad.t); ctx.lineTo(x,H-pad.b); ctx.stroke();
+  }
+  for(let i=0;i<=yTicks;i++){
+    const y=pad.t+(H-pad.t-pad.b)*i/yTicks;
+    ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(W-pad.r,y); ctx.stroke();
+  }
+}
+
+function axisLabels(ctx,W,H,pad,xMin,xMax,yMin,yMax) {
+  ctx.fillStyle='rgba(74,85,120,0.9)';
+  ctx.font='9px "Source Code Pro",monospace';
+  const gW=W-pad.l-pad.r, gH=H-pad.t-pad.b;
+  ctx.textAlign='center';
+  for(let i=0;i<=5;i++){
+    const t=xMin+(xMax-xMin)*i/5;
+    ctx.fillText(t.toFixed(1)+'s', pad.l+gW*i/5, H-pad.b+12);
+  }
+  ctx.textAlign='right';
+  for(let i=0;i<=4;i++){
+    const v=yMin+(yMax-yMin)*i/4;
+    ctx.fillText(v.toFixed(0), pad.l-5, pad.t+gH*(1-i/4)+3);
+  }
+}
+
+/* ══════════════════════════════════════════
+   CHART 1: FIRING RATE
+══════════════════════════════════════════ */
+function drawFiring() {
+  const {ctx,W,H}=setupCanvas('c-firing');
+  const pad={l:42,r:14,t:10,b:22};
+  const gW=W-pad.l-pad.r, gH=H-pad.t-pad.b;
+  const tMin=0, tMax=7, N=700;
+
+  // y range from all curves
+  let yMin=0, yMax=0;
+  const allP=[P,...snapshots.map(s=>s.params)];
+  allP.forEach(p=>{
+    for(let i=0;i<=N;i++){
+      const v=r(tMin+(tMax-tMin)*i/N,p);
+      if(v<yMin)yMin=v; if(v>yMax)yMax=v;
+    }
+  });
+  yMax=yMax*1.1+5; yMin=Math.min(yMin,0);
+
+  const scX=t=>pad.l+(t-tMin)/(tMax-tMin)*gW;
+  const scY=v=>pad.t+(1-(v-yMin)/(yMax-yMin))*gH;
+
+  drawGrid(ctx,W,H,pad,tMin,tMax,yMin,yMax,7,5);
+  axisLabels(ctx,W,H,pad,tMin,tMax,yMin,yMax);
+
+  // 스냅샷 곡선들
+  snapshots.forEach(s=>{
+    const p=s.params;
+    // CLI 면적
+    ctx.beginPath();
+    const thrY=scY(p.rthr);
+    ctx.moveTo(scX(p.t1), thrY);
+    for(let i=0;i<=N;i++){
+      const t=p.t1+(p.t2-p.t1)*i/N;
+      if(r(t,p)>p.rthr) ctx.lineTo(scX(t), scY(r(t,p)));
+      else ctx.lineTo(scX(t), thrY);
+    }
+    ctx.lineTo(scX(p.t2), thrY);
+    ctx.closePath();
+    ctx.fillStyle=s.color+'1a';
+    ctx.fill();
+    // 발화율 선
+    ctx.beginPath();
+    for(let i=0;i<=N;i++){
+      const t=tMin+(tMax-tMin)*i/N;
+      i===0?ctx.moveTo(scX(t),scY(r(t,p))):ctx.lineTo(scX(t),scY(r(t,p)));
+    }
+    ctx.strokeStyle=s.color+'88'; ctx.lineWidth=1.2; ctx.setLineDash([4,4]); ctx.stroke();
+    ctx.setLineDash([]);
+    // 임계선
+    ctx.beginPath(); ctx.moveTo(pad.l,scY(p.rthr)); ctx.lineTo(W-pad.r,scY(p.rthr));
+    ctx.strokeStyle=s.color+'33'; ctx.lineWidth=1; ctx.stroke();
+  });
+
+  // 라이브 CLI 면적
+  ctx.beginPath();
+  const thrY=scY(P.rthr);
+  ctx.moveTo(scX(P.t1),thrY);
+  for(let i=0;i<=N;i++){
+    const t=P.t1+(P.t2-P.t1)*i/N;
+    if(r(t)>P.rthr) ctx.lineTo(scX(t),scY(r(t)));
+    else ctx.lineTo(scX(t),thrY);
+  }
+  ctx.lineTo(scX(P.t2),thrY);
+  ctx.closePath();
+  ctx.fillStyle='rgba(124,143,255,0.13)'; ctx.fill();
+
+  // 적분 구간 표시
+  ctx.fillStyle='rgba(124,143,255,0.04)';
+  ctx.fillRect(scX(P.t1),pad.t,scX(P.t2)-scX(P.t1),gH);
+
+  // 라이브 r(t)
+  ctx.beginPath();
+  for(let i=0;i<=N;i++){
+    const t=tMin+(tMax-tMin)*i/N;
+    i===0?ctx.moveTo(scX(t),scY(r(t))):ctx.lineTo(scX(t),scY(r(t)));
+  }
+  ctx.strokeStyle='#7c8fff'; ctx.lineWidth=2; ctx.stroke();
+
+  // 라이브 임계선
+  ctx.beginPath(); ctx.moveTo(pad.l,scY(P.rthr)); ctx.lineTo(W-pad.r,scY(P.rthr));
+  ctx.strokeStyle='rgba(255,179,0,0.6)'; ctx.lineWidth=1; ctx.setLineDash([5,4]); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // t1, t2 라인
+  [P.t1,P.t2].forEach(t=>{
+    ctx.beginPath(); ctx.moveTo(scX(t),pad.t); ctx.lineTo(scX(t),H-pad.b);
+    ctx.strokeStyle='rgba(105,255,71,0.25)'; ctx.lineWidth=1; ctx.setLineDash([3,3]); ctx.stroke();
+    ctx.setLineDash([]);
+  });
+
+  // 스냅샷 범례
+  snapshots.forEach((s,i)=>{
+    ctx.fillStyle=s.color;
+    ctx.font='9px "Source Code Pro",monospace';
+    ctx.textAlign='left';
+    ctx.fillText(`[${s.name}] CLI:${s.stats.cli.toFixed(1)}`, pad.l+4, pad.t+13+i*12);
+  });
+
+  // peak 표시
+  let pk=-1e9, pkt=0;
+  for(let i=0;i<=N;i++){const t=tMin+(tMax-tMin)*i/N; const v=r(t); if(v>pk){pk=v;pkt=t;}}
+  const px=scX(pkt), py=scY(pk);
+  ctx.beginPath(); ctx.arc(px,py,3,0,Math.PI*2);
+  ctx.fillStyle='#fff'; ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,0.6)'; ctx.font='9px "Source Code Pro",monospace';
+  ctx.textAlign='left';
+  ctx.fillText(pk.toFixed(1)+' Hz', px+5, py-2);
+
+  document.getElementById('peak-val').textContent='peak '+pk.toFixed(1)+' Hz';
+}
+
+/* ══════════════════════════════════════════
+   CHART 2: CCV
+══════════════════════════════════════════ */
+function drawCCV() {
+  const {ctx,W,H}=setupCanvas('c-ccv');
+  const pad={l:42,r:14,t:10,b:22};
+  const gW=W-pad.l-pad.r, gH=H-pad.t-pad.b;
+
+  const liveCCV=computeCCV(P,300);
+  let yMax=Math.max(...liveCCV.V,1);
+  snapshots.forEach(s=>{ const {V}=computeCCV(s.params,300); const m=Math.max(...V); if(m>yMax)yMax=m; });
+  yMax*=1.1;
+
+  const tMin=0, tMax=7;
+  const scX=t=>pad.l+(t-tMin)/(tMax-tMin)*gW;
+  const scY=v=>pad.t+(1-v/yMax)*gH;
+
+  drawGrid(ctx,W,H,pad,tMin,tMax,0,yMax,7,5);
+  axisLabels(ctx,W,H,pad,tMin,tMax,0,yMax);
+
+  // 스냅샷
+  snapshots.forEach(s=>{
+    const {T,V}=computeCCV(s.params,300);
+    ctx.beginPath();
+    T.forEach((t,i)=>i===0?ctx.moveTo(scX(t),scY(V[i])):ctx.lineTo(scX(t),scY(V[i])));
+    ctx.strokeStyle=s.color+'77'; ctx.lineWidth=1.2; ctx.setLineDash([4,4]); ctx.stroke();
+    ctx.setLineDash([]);
+    // 면적
+    ctx.beginPath();
+    ctx.moveTo(scX(T[0]),scY(0));
+    T.forEach((t,i)=>ctx.lineTo(scX(t),scY(V[i])));
+    ctx.lineTo(scX(T[T.length-1]),scY(0));
+    ctx.closePath(); ctx.fillStyle=s.color+'11'; ctx.fill();
+  });
+
+  // 라이브 면적
+  ctx.beginPath();
+  ctx.moveTo(scX(liveCCV.T[0]),scY(0));
+  liveCCV.T.forEach((t,i)=>ctx.lineTo(scX(t),scY(liveCCV.V[i])));
+  ctx.lineTo(scX(liveCCV.T[liveCCV.T.length-1]),scY(0));
+  ctx.closePath(); ctx.fillStyle='rgba(105,255,71,0.08)'; ctx.fill();
+
+  // 라이브 선
+  ctx.beginPath();
+  liveCCV.T.forEach((t,i)=>i===0?ctx.moveTo(scX(t),scY(liveCCV.V[i])):ctx.lineTo(scX(t),scY(liveCCV.V[i])));
+  ctx.strokeStyle='#69ff47'; ctx.lineWidth=2; ctx.stroke();
+
+  const finalCCV=liveCCV.V[liveCCV.V.length-1];
+  document.getElementById('ccv-final').textContent=finalCCV.toFixed(2)+' Hz·s²';
+  document.getElementById('out-ccv').textContent=finalCCV.toFixed(2);
+}
+
+/* ══════════════════════════════════════════
+   CHART 3: BOLD
+══════════════════════════════════════════ */
+function drawBOLD() {
+  const {ctx,W,H}=setupCanvas('c-bold');
+  const pad={l:42,r:14,t:10,b:22};
+  const gW=W-pad.l-pad.r, gH=H-pad.t-pad.b;
+
+  const liveBOLD=computeBOLD(P,220);
+  let bMax=Math.max(...liveBOLD.bv,1);
+  snapshots.forEach(s=>{ const {bv}=computeBOLD(s.params,220); const m=Math.max(...bv); if(m>bMax)bMax=m; });
+  bMax*=1.15;
+
+  const tMin=0, tMax=14;
+  const scX=t=>pad.l+(t-tMin)/(tMax-tMin)*gW;
+  const scY=v=>pad.t+(1-v/bMax)*gH;
+
+  drawGrid(ctx,W,H,pad,tMin,tMax,0,bMax,7,4);
+  axisLabels(ctx,W,H,pad,tMin,tMax,0,bMax);
+
+  // 스냅샷 BOLD
+  snapshots.forEach(s=>{
+    const {times,bv}=computeBOLD(s.params,220);
+    ctx.beginPath();
+    times.forEach((t,i)=>i===0?ctx.moveTo(scX(t),scY(bv[i])):ctx.lineTo(scX(t),scY(bv[i])));
+    ctx.strokeStyle=s.color+'66'; ctx.lineWidth=1.2; ctx.setLineDash([4,4]); ctx.stroke();
+    ctx.setLineDash([]);
+  });
+
+  // 라이브 면적
+  ctx.beginPath();
+  ctx.moveTo(scX(liveBOLD.times[0]),scY(0));
+  liveBOLD.times.forEach((t,i)=>ctx.lineTo(scX(t),scY(liveBOLD.bv[i])));
+  ctx.lineTo(scX(liveBOLD.times[liveBOLD.times.length-1]),scY(0));
+  ctx.closePath(); ctx.fillStyle='rgba(255,77,109,0.08)'; ctx.fill();
+
+  // 라이브 선
+  ctx.beginPath();
+  liveBOLD.times.forEach((t,i)=>i===0?ctx.moveTo(scX(t),scY(liveBOLD.bv[i])):ctx.lineTo(scX(t),scY(liveBOLD.bv[i])));
+  ctx.strokeStyle='#ff4d6d'; ctx.lineWidth=2; ctx.stroke();
+
+  // 지연 주석
+  const pkIdx=liveBOLD.bv.indexOf(Math.max(...liveBOLD.bv));
+  const pkT=liveBOLD.times[pkIdx];
+  ctx.fillStyle='rgba(255,77,109,0.6)'; ctx.font='9px "Source Code Pro",monospace';
+  ctx.textAlign='center';
+  ctx.fillText(`peak@${pkT.toFixed(1)}s`, scX(pkT), pad.t+14);
+
+  const bpk=Math.max(...liveBOLD.bv);
+  document.getElementById('bold-peak').textContent='peak '+bpk.toFixed(3);
+}
+
+/* ══════════════════════════════════════════
+   CHART 4: RADAR
+══════════════════════════════════════════ */
+function drawRadar() {
+  const el=document.getElementById('radarCanvas');
+  const wrap=document.getElementById('radar-wrap');
+  const size=Math.min(wrap.offsetWidth, wrap.offsetHeight, 280);
+  const dpr=window.devicePixelRatio||1;
+  el.width=size*dpr; el.height=size*dpr;
+  el.style.width=size+'px'; el.style.height=size+'px';
+  const ctx=el.getContext('2d'); ctx.scale(dpr,dpr);
+
+  const cx=size/2, cy=size/2, R=size/2-30;
+  const axes=['CLI','Peak r','CCV','임계초과%','지속시간'];
+  const N=axes.length;
+
+  // 정규화 범위
+  const NORMS=[150, 80, 500, 100, 7];
+
+  function getVals(stats) {
+    return [
+      Math.min(stats.cli/NORMS[0],1),
+      Math.min((stats.peak-5)/(NORMS[1]-5),1),
+      Math.min(stats.ccv/NORMS[2],1),
+      Math.min(stats.overRate,1),
+      Math.min(stats.dur/NORMS[4],1),
+    ];
+  }
+
+  function polarPt(i, mag) {
+    const a=Math.PI/2-i*(2*Math.PI/N);
+    return [cx+R*mag*Math.cos(a), cy-R*mag*Math.sin(a)];
+  }
+
+  // 배경 거미줄
+  for(let ring=1;ring<=4;ring++){
+    ctx.beginPath();
+    for(let i=0;i<N;i++){
+      const [x,y]=polarPt(i,ring/4);
+      i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+    }
+    ctx.closePath();
+    ctx.strokeStyle=`rgba(255,255,255,0.05)`; ctx.lineWidth=1; ctx.stroke();
+  }
+  // 축선
+  for(let i=0;i<N;i++){
+    const [x,y]=polarPt(i,1);
+    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(x,y);
+    ctx.strokeStyle='rgba(255,255,255,0.06)'; ctx.lineWidth=1; ctx.stroke();
+    // 축 레이블
+    const [lx,ly]=polarPt(i,1.22);
+    ctx.fillStyle='rgba(74,85,120,0.9)';
+    ctx.font=`9px "Source Code Pro",monospace`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(axes[i],lx,ly);
+  }
+
+  // 스냅샷 다각형
+  snapshots.forEach(s=>{
+    const vals=getVals(s.stats);
+    ctx.beginPath();
+    vals.forEach((v,i)=>{ const [x,y]=polarPt(i,v); i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); });
+    ctx.closePath();
+    ctx.fillStyle=s.color+'1a'; ctx.fill();
+    ctx.strokeStyle=s.color+'88'; ctx.lineWidth=1.3; ctx.setLineDash([3,3]); ctx.stroke();
+    ctx.setLineDash([]);
+    // 꼭짓점 점
+    vals.forEach((v,i)=>{
+      const [x,y]=polarPt(i,v);
+      ctx.beginPath(); ctx.arc(x,y,2.5,0,Math.PI*2);
+      ctx.fillStyle=s.color+'cc'; ctx.fill();
+    });
+  });
+
+  // 라이브 다각형
+  const liveStats=calcStats(P);
+  const liveVals=getVals(liveStats);
+  ctx.beginPath();
+  liveVals.forEach((v,i)=>{ const [x,y]=polarPt(i,v); i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); });
+  ctx.closePath();
+  ctx.fillStyle='rgba(124,143,255,0.12)'; ctx.fill();
+  ctx.strokeStyle='#7c8fff'; ctx.lineWidth=2; ctx.stroke();
+  liveVals.forEach((v,i)=>{
+    const [x,y]=polarPt(i,v);
+    ctx.beginPath(); ctx.arc(x,y,3,0,Math.PI*2);
+    ctx.fillStyle='#7c8fff'; ctx.fill();
+    ctx.strokeStyle='#000'; ctx.lineWidth=1; ctx.stroke();
+  });
+
+  // 중앙 레이블
+  ctx.fillStyle='rgba(124,143,255,0.5)';
+  ctx.font='8px "Source Code Pro",monospace';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('LIVE', cx, cy);
+}
+
+/* ══════════════════════════════════════════
+   LIVE STATS UPDATE
+══════════════════════════════════════════ */
+function updateLiveStats() {
+  const cli=trapz(f,P.t1,P.t2);
+  document.getElementById('out-cli').textContent=cli.toFixed(2);
+
+  // CLI 미터
+  const pct=Math.min(cli/150*100,100);
+  const meter=document.getElementById('cli-meter');
+  meter.style.width=pct+'%';
+  let col='#69ff47';
+  if(pct>80) col='#ff4d6d';
+  else if(pct>50) col='#ffb300';
+  meter.style.background=col;
+  meter.style.boxShadow=`0 0 8px ${col}66`;
+
+  const labels=['기저 상태 / 졸음','일상적 인지 활동','생각이 많은 상태 ▲','인지 과부하 !!'];
+  const li=pct<25?0:pct<55?1:pct<80?2:3;
+  document.getElementById('cli-label').textContent=labels[li];
+
+  // diff badge 업데이트
+  if(snapshots.length>0){
+    const last=snapshots[snapshots.length-1].stats;
+    const liveS=calcStats(P);
+    const pairs=[
+      ['r0',P.r0,   last.cli,  liveS.cli,  'CLI'],
+      ['A', P.A,    null,      null,       ''],
+    ];
+    // 파라미터별 diff (vs 최신 스냅샷 파라미터)
+    const lp=snapshots[snapshots.length-1].params;
+    [['r0','r0'],['A','A'],['lam','lam'],['om','om'],['t0','t0'],['rthr','rthr'],['t1','t1'],['t2','t2']]
+      .forEach(([key,sid])=>{
+        const el=document.getElementById('d-'+key);
+        if(!el)return;
+        const delta=P[key]-lp[key];
+        if(Math.abs(delta)<0.01){ el.className='diff-badge diff-zero'; el.textContent=''; }
+        else {
+          const sign=delta>0?'+':'';
+          el.className='diff-badge '+(delta>0?'diff-pos':'diff-neg');
+          el.textContent=sign+delta.toFixed(1);
+        }
+      });
+    updateDiffSection();
+  }
+}
+
+/* ══════════════════════════════════════════
+   REDRAW ALL
+══════════════════════════════════════════ */
+function redraw() {
+  drawFiring();
+  drawCCV();
+  drawBOLD();
+  drawRadar();
+  updateLiveStats();
+}
+
+/* ══════════════════════════════════════════
+   SLIDERS
+══════════════════════════════════════════ */
+function bind(sid, key, fmt, suffix='') {
+  const s=document.getElementById(sid);
+  const v=document.getElementById('v-'+key);
+  s.addEventListener('input',()=>{
+    P[key]=parseFloat(s.value);
+    v.textContent=fmt(parseFloat(s.value))+suffix;
+    redraw();
+  });
+}
+bind('s-r0',  'r0',  v=>v.toFixed(1), ' Hz');
+bind('s-A',   'A',   v=>v.toFixed(0), ' Hz');
+bind('s-lam', 'lam', v=>v.toFixed(1), '');
+bind('s-om',  'om',  v=>v.toFixed(0), ' rad/s');
+bind('s-t0',  't0',  v=>v.toFixed(1), ' s');
+bind('s-rthr','rthr',v=>v.toFixed(1), ' Hz');
+bind('s-t1',  't1',  v=>v.toFixed(1), ' s');
+bind('s-t2',  't2',  v=>v.toFixed(1), ' s');
+
+/* ══════════════════════════════════════════
+   TOAST
+══════════════════════════════════════════ */
+let toastTimer;
+function showToast(msg) {
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('show'),2200);
+}
+
+/* ══════════════════════════════════════════
+   INIT
+══════════════════════════════════════════ */
+window.addEventListener('load',()=>{ setTimeout(redraw,100); });
+window.addEventListener('resize',redraw);
+</script>
+</body>
+</html>
